@@ -47,6 +47,35 @@ struct DynamicCamera {
         // lookahead) appropriately. Next,
         // set the camera center by offsetting the cameraUnadjustedCenter, combining lookAhead.
         // Finally update cameraUnadjustedCenter, but without lookahead.
+        auto playerWindowPercent = sf::Vector2f{0.5f, 0.5f} + camera.worldToWindowPercentDist(trackedPosWorld - cameraUnadjustedCenter);
+        auto playerVeloWorldPercent = camera.worldToWindowPercentDist(trackedVelocityWorld);
+        auto direction = 0.f;
+        if (playerVeloWorldPercent.x > 0.f) {
+            direction = 1.f;
+        }
+        else if (playerVeloWorldPercent.x < 0.f) {
+            direction = -1.f;
+        }
+        auto lookAheadTarget = camera.windowPercentToWorldDist({lookAhead * direction, 0.f}).x;
+        lookaheadState = lookaheadState + alpha * (lookAheadTarget - lookaheadState);
+        auto deltaPercent = 0.f;
+        auto deadDist = deadZoneX.signedDistance(playerWindowPercent.x);
+        auto side = (playerWindowPercent.x > deadZoneX.max ? 1.f : -1.f);
+        // dead zone; do nothing
+        if (deadZoneX.contains(playerWindowPercent.x)) {
+        }
+        // soft rejection zone: move to dead edge
+        else if (softZoneX.contains(playerWindowPercent.x)) {
+            deltaPercent = side * alpha * deadDist;
+        }
+        // hard zone: snap to hard edge then ease to dead edge
+        else {
+            auto hardDist = softZoneX.signedDistance(playerWindowPercent.x);
+            deltaPercent = side * (hardDist + alpha * (deadDist - hardDist)); // snap to hard edge then ease to dead edge
+        }
+        auto deltaWorld = camera.windowPercentToWorldDist({deltaPercent, 0.f});
+        camera.setCameraCenter(cameraUnadjustedCenter + deltaWorld + sf::Vector2f{lookaheadState, 0.f});
+        cameraUnadjustedCenter += deltaWorld;
     }
 
     float alpha;  // alpha to use for damping of camera position, *as well as* for smoothing of
